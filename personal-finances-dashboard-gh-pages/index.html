@@ -1,86 +1,113 @@
-// Hisse Analiz ve Portföy Terminali - Ana Mantık
-
-// Başlangıç verileri veya hafızadan (localStorage) verileri çekme
-let portfolio = JSON.parse(localStorage.getItem('hisse_portfolio')) || [
-    { symbol: 'NVDA', shares: 15, cost: 115.00, price: 130.00 },
-    { symbol: 'PLTR', shares: 50, cost: 24.50, price: 29.80 }
-];
-
-// DOM Elementleri
-const stockForm = document.getElementById('stock-form');
-const portfolioTableBody = document.querySelector('#portfolio-table tbody');
-const totalPortfolioValueEl = document.getElementById('total-portfolio-value');
-const totalPnLEl = document.getElementById('total-pnl');
-
-// Arayüzü Güncelleme Fonksiyonu
-function renderPortfolio() {
-    portfolioTableBody.innerHTML = '';
-    let totalValue = 0;
-    let totalCostBasis = 0;
-
-    portfolio.forEach((item, index) => {
-        const currentVal = item.shares * item.price;
-        const costVal = item.shares * item.cost;
-        const pnl = currentVal - costVal;
-        const pnlPercentage = costVal > 0 ? (pnl / costVal) * 100 : 0;
-
-        totalValue += currentVal;
-        totalCostBasis += costVal;
-
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <strong>${item.symbol}</strong>
-            <td>${item.shares}</td>
-            <td>$${item.cost.toFixed(2)}</td>
-            <td>$${item.price.toFixed(2)}</td>
-            <td>$${currentVal.toFixed(2)}</td>
-            <td style="color: ${pnl >= 0 ? '#4ec9b0' : '#f14c4c'};">
-                $${pnl.toFixed(2)} (${pnlPercentage.toFixed(2)}%)
-            </td>
-            <td><button onclick="removeStock(${index})" style="background: #a12626; padding: 0.2rem 0.5rem; font-size: 0.8rem;">Sil</button></td>
-        `;
-        portfolioTableBody.appendChild(row);
-    });
-
-    const totalPnL = totalValue - totalCostBasis;
-    const totalPnLPercent = totalCostBasis > 0 ? (totalPnL / totalCostBasis) * 100 : 0;
-
-    totalPortfolioValueEl.textContent = `$${totalValue.toFixed(2)}`;
-    totalPnLEl.textContent = `$${totalPnL.toFixed(2)} (${totalPnLPercent.toFixed(2)}%)`;
-    totalPnLEl.style.color = totalPnL >= 0 ? '#4ec9b0' : '#f14c4c';
-
-    // Verileri tarayıcı hafızasına kaydet
-    localStorage.setItem('hisse_portfolio', JSON.stringify(portfolio));
-}
-
-// Pozisyon Silme Fonksiyonu
-window.removeStock = function(index) {
-    portfolio.splice(index, 1);
-    renderPortfolio();
-};
-
-// Form Gönderildiğinde Yeni Hisse Ekleme
-stockForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-
-    const symbol = document.getElementById('symbol').value.toUpperCase().trim();
-    const shares = parseFloat(document.getElementById('shares').value);
-    const cost = parseFloat(document.getElementById('cost').value);
-    const price = parseFloat(document.getElementById('price').value);
-
-    if (!symbol || isNaN(shares) || isNaN(cost) || isNaN(price)) return;
-
-    // Aynı hisse varsa güncelle, yoksa yeni ekle
-    const existingIndex = portfolio.findIndex(item => item.symbol === symbol);
-    if (existingIndex > -1) {
-        portfolio[existingIndex] = { symbol, shares, cost, price };
-    } else {
-        portfolio.push({ symbol, shares, cost, price });
+<!doctype html>
+<html lang=en>
+<head>
+  <style>
+    body {
+      margin: 0;
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      padding: 1.5rem;
     }
+    * { box-sizing: border-box; }
+    a, a:visited { color: #3794ff; text-decoration: none; }
+    section { margin-bottom: 3rem; background: #1e1e1e; padding: 1.5rem; border-radius: 8px; border: 1px solid #333; }
+    h1 { font-size: 1.8rem; margin-bottom: 1rem; color: #fff; }
+    h2 { font-size: 1.4rem; color: #fff; }
+    .flex { display: flex; flex-direction: row; column-gap: 1.5rem; flex-wrap: wrap; }
+    .terminal-panel { flex: 1; min-width: 320px; background: #252526; padding: 1.5rem; border-radius: 6px; border: 1px solid #3c3c3c; }
+    .terminal-display { flex: 2; min-width: 400px; background: #1e1e1e; padding: 1.5rem; border-radius: 6px; }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 0.3rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+    input { width: 100%; padding: 0.6rem; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 1rem; }
+    input:focus { border-color: #3794ff; outline: none; }
+    button { width: 100%; padding: 0.75rem; border: 0; border-radius: 4px; background-color: #0e639c; color: #fff; font-weight: bold; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+    button:hover { background-color: #1177bb; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { padding: 0.6rem; text-align: left; border-bottom: 1px solid #333; }
+    th { color: #888; font-weight: 600; }
+    .metric-card { background: #2d2d2d; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; border-left: 4px solid #3794ff; }
+    .metric-value { font-size: 1.8rem; font-weight: bold; color: #fff; }
+    .metric-label { font-size: 0.85rem; color: #aaa; }
+  </style>
+  <meta charset=utf-8>
+  <title>Hisse Analiz ve Portföy Terminali</title>
+</head>
+<body>
 
-    stockForm.reset();
-    renderPortfolio();
-});
+  <h1>Hisse Analiz ve Portföy Terminali</h1>
 
-// Sayfa yüklendiğinde ilk render
-renderPortfolio();
+  <section class="flex">
+    <!-- SOL TARAF: İnteraktif Veri Giriş ve Portföy Yönetim Paneli -->
+    <div class="terminal-panel">
+      <h2>Yeni Pozisyon Ekle</h2>
+      <form id="stock-form">
+        <div class="form-group">
+          <label>Hisse Sembolü (Örn: NVDA, PLTR, VOO)</label>
+          <input type="text" id="symbol" placeholder="NVDA" required>
+        </div>
+        <div class="form-group">
+          <label>Lot / Adet Miktarı</label>
+          <input type="number" id="shares" step="any" placeholder="10" required>
+        </div>
+        <div class="form-group">
+          <label>Ortalama Maliyet ($)</label>
+          <input type="number" id="cost" step="any" placeholder="120.50" required>
+        </div>
+        <div class="form-group">
+          <label>Anlık Fiyat ($)</label>
+          <input type="number" id="price" step="any" placeholder="145.00" required>
+        </div>
+        <button type="submit">Portföye Ekle / Güncelle</button>
+      </form>
+
+      <div style="margin-top: 2rem;">
+        <h2>Portföy Özeti</h2>
+        <div class="metric-card">
+          <div class="metric-label">Toplam Portföy Değeri</div>
+          <div class="metric-value" id="total-portfolio-value">$0.00</div>
+        </div>
+        <div class="metric-card" style="border-left-color: #4ec9b0;">
+          <div class="metric-label">Toplam Kâr / Zarar</div>
+          <div class="metric-value" id="total-pnl">$0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAĞ TARAF: Canlı Veri Tablosu ve D3 Grafik Alanı -->
+    <div class="terminal-display">
+      <h2>Portföy Varlıkları</h2>
+      <div style="overflow-x: auto;">
+        <table id="portfolio-table">
+          <thead>
+            <tr>
+              <th>Sembol</th>
+              <th>Lot</th>
+              <th>Maliyet</th>
+              <th>Anlık Fiyat</th>
+              <th>Toplam Değer</th>
+              <th>K/Z ($)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Dinamik JavaScript ile doldurulacak -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 2rem;">
+        <h2>Sermaye Dağılım Grafiği</h2>
+        <div id="spending" style="width: 100%; height: 300px; display: flex; justify-content: center; align-items: center;">
+          <span style="color: #666; font-style: italic;">Grafik veriler girildikten sonra yüklenecek...</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- D3 Kütüphanesi ve Scriptler -->
+  <script src=./d3-7.6.1.js></script>
+  <script type=module src=./data.js></script>
+  <script type=module src=./index.js></script>
+
+</body>
+</html>
